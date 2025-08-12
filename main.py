@@ -1,4 +1,3 @@
-import agentpy as ap
 # Model design
 import agentpy as ap
 
@@ -65,7 +64,7 @@ class SegregationModel(ap.Model):
         self.report('segregation', self.get_segregation())
 
 def main():
-    print("Hello from multiagents!")
+    
     parameters = {
     'want_similar': 0.3, # For agents to be happy
     'n_groups': 2, # Number of groups
@@ -83,6 +82,7 @@ def main():
     model = SegregationModel(parameters)
     animation = ap.animate(model, fig, ax, animation_plot)
     IPython.display.HTML(animation.to_jshtml())
+    print("Hello from multiagents!")
 
 
 if __name__ == "__main__":
