@@ -3,49 +3,53 @@ import matplotlib.pyplot as plt
 import random
 
 def main():
-    class Person(ap.Agent):
+    class TrashTruck(ap.Agent):
         def setup(self):
-            self.group = self.p.group_1 if self.id % 2 == 0 else self.p.group_2
+            self.position = (0, 0)
+            self.load = 0
+            self.isActive = False
+            self.max_load = self.model.p["truck_capacity"]
 
-        def happy(self):
-            neighbors = self.model.grid.neighbors(self)
-            if not neighbors:
-                return True
-            same_group = sum(1 for n in neighbors if n.group == self.group)
-            return same_group / len(neighbors) >= self.p.homophily
-
-        def step(self):
-            if not self.happy():
-                empty_cells = self.model.grid.empty
-                if empty_cells:
-                    new_cell = self.model.random.choice(empty_cells)
-                    self.model.grid.move_to(self, new_cell)
-
-    class SegregationModel(ap.Model):
+    
+    class TrashBin(ap.Agent):
         def setup(self):
-            self.grid = ap.Grid(self, [10, 10], track_empty=True)
-            self.agents = ap.AgentList(self, 80, Person)
-            self.grid.add_agents(self.agents, random=True)
+            self.position = (0, 0)
+            self.isActive = False
+            self.status = 0
+            self.max_trash = self.model.p["bin_capacity"]
 
+
+    class CommunicationModel(ap.Model):
+        def setup(self):
+            num_trucks = self.p["trucks"]
+            num_bins = self.p["bins"]
+            self.trucks = ap.AgentList(self, num_trucks, TrashTruck)
+            self.bins = ap.AgentList(self, num_bins, TrashBin)
+            self.agents = self.trucks + self.bins
+                
         def step(self):
-            self.agents.step()
+            #TODO: Update trucks position
+            #TODO: Update trash bins status
+
+            pass
 
         def update(self):
             pass
 
         def end(self):
-            # Fix here: get position from grid, not agent
-            self.record('positions', [(a.group, self.grid.positions[a]) for a in self.agents])
+            pass
 
 
     parameters = {
-        'steps': 10,
-        'group_1': 'red',
-        'group_2': 'blue',
-        'homophily': 0.7,
+        "trucks": 5,
+        "bins": 10,
+        "steps": 100,
+        "truck_capacity": 1000,
+        "bin_capacity" : 100,
+        "grid_size" : (50, 50),
     }
 
-    model = SegregationModel(parameters)
+    model = CommunicationModel(parameters)
     results = model.run()
 
     def plot_grid(model):
