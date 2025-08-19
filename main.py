@@ -52,19 +52,6 @@ def main():
     model = CommunicationModel(parameters)
     results = model.run()
 
-    def plot_grid(model):
-        colors = {'red': 'red', 'blue': 'blue'}
-        for agent in model.agents:
-            x, y = model.grid.positions[agent]
-            plt.scatter(x, y, color=colors[agent.group], s=100)
-        plt.title("Final Positions of Agents")
-        plt.grid(True)
-        plt.xticks(range(model.grid.shape[0]))
-        plt.yticks(range(model.grid.shape[1]))
-        plt.gca().invert_yaxis()
-        plt.show()
-
-    plot_grid(model)
 
 if __name__ == "__main__":
     main()
