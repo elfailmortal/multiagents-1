@@ -30,23 +30,19 @@ class TrashTruck(ap.Agent):
         return random.choice(free_cells)
 
     def move_toward(self, target_pos):
-        grid = self.model.p["grid_map"]
         x, y = self.position
         tx, ty = target_pos
 
-        dx = 1 if tx > x else -1 if tx < x else 0
-        dy = 1 if ty > y else -1 if ty < y else 0
+        options = [(x+1,y),(x-1,y),(x,y+1),(x,y-1)]
+        options = [(nx,ny) for nx,ny in options if 0<=nx<len(self.model.p["grid_map"]) 
+                                            and 0<=ny<len(self.model.p["grid_map"][0])
+                                            and self.model.p["grid_map"][nx][ny]==0]
+        if not options:
+            return  # blocked
+        # pick the neighbor closest to target
+        options.sort(key=lambda pos: math.dist(pos,target_pos))
+        self.position = options[0]
 
-        next_positions = []
-        if dx != 0:
-            next_positions.append((x + dx, y))
-        if dy != 0:
-            next_positions.append((x, y + dy))
-
-        for nx, ny in next_positions:
-            if 0 <= nx < len(grid) and 0 <= ny < len(grid[0]) and grid[nx][ny] == 0:
-                self.position = (nx, ny)
-                return
 
     def at_position(self, target):
         return self.position == target
@@ -78,8 +74,11 @@ class CommunicationModel(ap.Model):
         self.log = {"steps": []}
 
     def step(self):
+        for t in self.trucks:
+            print(f"Truck {t.id}: pos={t.position}, target={t.target_bin.position if t.target_bin else None}, active={t.isActive}")
+
         for bin in self.bins:
-            if bin.status == 0 and random.random() < 0.1:
+            if bin.status == 0 and random.random() < 0.5 and not bin.assigned:
                 bin.status = 1
                 bin.assigned = False
 
@@ -99,20 +98,31 @@ class CommunicationModel(ap.Model):
             bin.assigned = True
 
         for truck in self.trucks:
+            # Assign target if truck has none
+            if truck.target_bin is None or not truck.isActive:
+                unassigned_bins = [b for b in self.bins if b.status == 1 and not b.assigned]
+                if unassigned_bins:
+                    unassigned_bins.sort(key=lambda b: truck.distance_to(b.position))
+                    target = unassigned_bins[0]
+                    truck.target_bin = target
+                    truck.isActive = True
+                    target.assigned = True
+
+            # Move toward target if active
             if truck.isActive and truck.target_bin:
-                bin = truck.target_bin
-                if not truck.at_position(bin.position):
-                    truck.move_toward(bin.position)
+                if not truck.at_position(truck.target_bin.position):
+                    truck.move_toward(truck.target_bin.position)
                 else:
-                    truck.load += bin.max_trash
+                    # Picked up the bin
+                    truck.load += truck.target_bin.max_trash
                     truck.bins_picked_up += 1
-                    bin.status = 0
-                    bin.assigned = False
+                    truck.target_bin.status = 0
+                    truck.target_bin.assigned = False
                     truck.isActive = False
                     truck.target_bin = None
 
+
     def update(self):
-        self.print_grid()
         self.step_count += 1
         if self.step_count % 5 == 0 or self.step_count == 1:
             self.plot_state()
