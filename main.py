@@ -2,6 +2,7 @@ import agentpy as ap
 import random
 import matplotlib.pyplot as plt
 import math
+import json
 
 
 """
@@ -74,8 +75,6 @@ class CommunicationModel(ap.Model):
         self.log = {"steps": []}
 
     def step(self):
-        for t in self.trucks:
-            print(f"Truck {t.id}: pos={t.position}, target={t.target_bin.position if t.target_bin else None}, active={t.isActive}")
 
         for bin in self.bins:
             if bin.status == 0 and random.random() < 0.5 and not bin.assigned:
@@ -98,7 +97,6 @@ class CommunicationModel(ap.Model):
             bin.assigned = True
 
         for truck in self.trucks:
-            # Assign target if truck has none
             if truck.target_bin is None or not truck.isActive:
                 unassigned_bins = [b for b in self.bins if b.status == 1 and not b.assigned]
                 if unassigned_bins:
@@ -108,19 +106,16 @@ class CommunicationModel(ap.Model):
                     truck.isActive = True
                     target.assigned = True
 
-            # Move toward target if active
             if truck.isActive and truck.target_bin:
                 if not truck.at_position(truck.target_bin.position):
                     truck.move_toward(truck.target_bin.position)
                 else:
-                    # Picked up the bin
                     truck.load += truck.target_bin.max_trash
                     truck.bins_picked_up += 1
                     truck.target_bin.status = 0
                     truck.target_bin.assigned = False
                     truck.isActive = False
                     truck.target_bin = None
-
 
     def update(self):
         self.step_count += 1
@@ -203,6 +198,19 @@ class CommunicationModel(ap.Model):
                 f"Truck at {truck.position} has load {truck.load} and has picked up {truck.bins_picked_up} bins"
             )
 
+def save_log_to_json(model, filename="simulation_log.json"):
+    """
+    Save the simulation log (all steps) to a JSON file.
+    """
+    # Build a structured JSON
+    output = {
+        "parameters": model.p,
+        "steps": model.log["steps"]
+    }
+
+    # Save to file
+    with open(filename, "w") as f:
+        json.dump(output, f, indent=4)
 
 def main():
     parameters = {
@@ -229,6 +237,7 @@ def main():
 
     model = CommunicationModel(parameters)
     results = model.run()
+    save_log_to_json(model, "simulation_log.json")
     print(results)
 
 
