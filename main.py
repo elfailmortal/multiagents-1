@@ -3,6 +3,7 @@ import random
 import matplotlib.pyplot as plt
 import math
 import json
+from collections import deque
 
 
 """
@@ -24,6 +25,34 @@ class TrashTruck(ap.Agent):
         self.max_load = self.model.p["truck_capacity"]
         self.target_bin = None
 
+    def bfs_path(self, start, goal):
+        """Return shortest path (as list of positions) from start to goal using BFS."""
+        grid = self.model.p["grid_map"]
+        rows, cols = len(grid), len(grid[0])
+
+        queue = deque([start])
+        visited = {start: None}  # store parent of each visited cell
+
+        while queue:
+            x, y = queue.popleft()
+            if (x, y) == goal:
+                # reconstruct path
+                path = []
+                cur = (x, y)
+                while cur is not None:
+                    path.append(cur)
+                    cur = visited[cur]
+                return path[::-1]  # reverse path
+            # explore neighbors
+            for nx, ny in [(x+1,y),(x-1,y),(x,y+1),(x,y-1)]:
+                if (0 <= nx < rows and 0 <= ny < cols 
+                    and grid[nx][ny] != 1  # not a wall
+                    and (nx, ny) not in visited):
+                    visited[(nx, ny)] = (x, y)
+                    queue.append((nx, ny))
+        return None  # no path
+
+
     def random_free_position(self):
         grid = self.model.p["grid_map"]
         free_cells = [(i, j) for i in range(len(grid))
@@ -31,19 +60,10 @@ class TrashTruck(ap.Agent):
         return random.choice(free_cells)
 
     def move_toward(self, target_pos):
-        x, y = self.position
-        tx, ty = target_pos
-
-        options = [(x+1,y),(x-1,y),(x,y+1),(x,y-1)]
-        options = [(nx,ny) for nx,ny in options if 0<=nx<len(self.model.p["grid_map"]) 
-                                            and 0<=ny<len(self.model.p["grid_map"][0])
-                                            and self.model.p["grid_map"][nx][ny]==0]
-        if not options:
-            return  # blocked
-        # pick the neighbor closest to target
-        options.sort(key=lambda pos: math.dist(pos,target_pos))
-        self.position = options[0]
-
+        path = self.bfs_path(self.position, target_pos)
+        if path and len(path) > 1:
+            # step to the next cell along the shortest path
+            self.position = path[1]
 
     def at_position(self, target):
         return self.position == target
@@ -214,8 +234,8 @@ def save_log_to_json(model, filename="simulation_log.json"):
 
 def main():
     parameters = {
-        "trucks": 5,
-        "bins": 10,
+        "trucks": 2,
+        "bins": 5,
         "steps": 100,
         "truck_capacity": 1000,
         "bin_capacity": 100,
