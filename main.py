@@ -97,7 +97,7 @@ class CommunicationModel(ap.Model):
     def step(self):
 
         for bin in self.bins:
-            if bin.status == 0 and random.random() < 0.5 and not bin.assigned:
+            if bin.status == 0 and random.random() < 0.1 and not bin.assigned:
                 bin.status = 1
                 bin.assigned = False
 
@@ -139,8 +139,7 @@ class CommunicationModel(ap.Model):
 
     def update(self):
         self.step_count += 1
-        if self.step_count % 5 == 0 or self.step_count == 1:
-            self.plot_state()
+        self.plot_state()
 
         step_data = {"step": self.step_count, "agents": {}}
 
@@ -236,7 +235,7 @@ def main():
     parameters = {
         "trucks": 2,
         "bins": 5,
-        "steps": 100,
+        "steps": 50,
         "truck_capacity": 1000,
         "bin_capacity": 100,
         "grid_map": [
