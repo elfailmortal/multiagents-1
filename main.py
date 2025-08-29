@@ -2,6 +2,8 @@ import agentpy as ap
 import random
 import matplotlib.pyplot as plt
 import math
+import json
+from collections import deque
 
 
 """
@@ -23,6 +25,34 @@ class TrashTruck(ap.Agent):
         self.max_load = self.model.p["truck_capacity"]
         self.target_bin = None
 
+    def bfs_path(self, start, goal):
+        """Return shortest path (as list of positions) from start to goal using BFS."""
+        grid = self.model.p["grid_map"]
+        rows, cols = len(grid), len(grid[0])
+
+        queue = deque([start])
+        visited = {start: None}  # store parent of each visited cell
+
+        while queue:
+            x, y = queue.popleft()
+            if (x, y) == goal:
+                # reconstruct path
+                path = []
+                cur = (x, y)
+                while cur is not None:
+                    path.append(cur)
+                    cur = visited[cur]
+                return path[::-1]  # reverse path
+            # explore neighbors
+            for nx, ny in [(x+1,y),(x-1,y),(x,y+1),(x,y-1)]:
+                if (0 <= nx < rows and 0 <= ny < cols 
+                    and grid[nx][ny] != 1  # not a wall
+                    and (nx, ny) not in visited):
+                    visited[(nx, ny)] = (x, y)
+                    queue.append((nx, ny))
+        return None  # no path
+
+
     def random_free_position(self):
         grid = self.model.p["grid_map"]
         free_cells = [(i, j) for i in range(len(grid))
@@ -30,23 +60,10 @@ class TrashTruck(ap.Agent):
         return random.choice(free_cells)
 
     def move_toward(self, target_pos):
-        grid = self.model.p["grid_map"]
-        x, y = self.position
-        tx, ty = target_pos
-
-        dx = 1 if tx > x else -1 if tx < x else 0
-        dy = 1 if ty > y else -1 if ty < y else 0
-
-        next_positions = []
-        if dx != 0:
-            next_positions.append((x + dx, y))
-        if dy != 0:
-            next_positions.append((x, y + dy))
-
-        for nx, ny in next_positions:
-            if 0 <= nx < len(grid) and 0 <= ny < len(grid[0]) and grid[nx][ny] == 0:
-                self.position = (nx, ny)
-                return
+        path = self.bfs_path(self.position, target_pos)
+        if path and len(path) > 1:
+            # step to the next cell along the shortest path
+            self.position = path[1]
 
     def at_position(self, target):
         return self.position == target
@@ -78,8 +95,9 @@ class CommunicationModel(ap.Model):
         self.log = {"steps": []}
 
     def step(self):
+
         for bin in self.bins:
-            if bin.status == 0 and random.random() < 0.1:
+            if bin.status == 0 and random.random() < 0.1 and not bin.assigned:
                 bin.status = 1
                 bin.assigned = False
 
@@ -99,23 +117,29 @@ class CommunicationModel(ap.Model):
             bin.assigned = True
 
         for truck in self.trucks:
+            if truck.target_bin is None or not truck.isActive:
+                unassigned_bins = [b for b in self.bins if b.status == 1 and not b.assigned]
+                if unassigned_bins:
+                    unassigned_bins.sort(key=lambda b: truck.distance_to(b.position))
+                    target = unassigned_bins[0]
+                    truck.target_bin = target
+                    truck.isActive = True
+                    target.assigned = True
+
             if truck.isActive and truck.target_bin:
-                bin = truck.target_bin
-                if not truck.at_position(bin.position):
-                    truck.move_toward(bin.position)
+                if not truck.at_position(truck.target_bin.position):
+                    truck.move_toward(truck.target_bin.position)
                 else:
-                    truck.load += bin.max_trash
+                    truck.load += truck.target_bin.max_trash
                     truck.bins_picked_up += 1
-                    bin.status = 0
-                    bin.assigned = False
+                    truck.target_bin.status = 0
+                    truck.target_bin.assigned = False
                     truck.isActive = False
                     truck.target_bin = None
 
     def update(self):
-        self.print_grid()
         self.step_count += 1
-        if self.step_count % 5 == 0 or self.step_count == 1:
-            self.plot_state()
+        self.plot_state()
 
         step_data = {"step": self.step_count, "agents": {}}
 
@@ -193,12 +217,25 @@ class CommunicationModel(ap.Model):
                 f"Truck at {truck.position} has load {truck.load} and has picked up {truck.bins_picked_up} bins"
             )
 
+def save_log_to_json(model, filename="simulation_log.json"):
+    """
+    Save the simulation log (all steps) to a JSON file.
+    """
+    # Build a structured JSON
+    output = {
+        "parameters": model.p,
+        "steps": model.log["steps"]
+    }
+
+    # Save to file
+    with open(filename, "w") as f:
+        json.dump(output, f, indent=4)
 
 def main():
     parameters = {
-        "trucks": 5,
-        "bins": 10,
-        "steps": 100,
+        "trucks": 2,
+        "bins": 5,
+        "steps": 50,
         "truck_capacity": 1000,
         "bin_capacity": 100,
         "grid_map": [
@@ -220,6 +257,7 @@ def main():
 
     model = CommunicationModel(parameters)
     results = model.run()
+    save_log_to_json(model, "simulation_log.json")
     print(results)
 
 
